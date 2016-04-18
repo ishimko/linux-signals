@@ -16,92 +16,126 @@
 typedef struct {
     int process_number;
     int children_count;
-    int* children;
+    int *children;
 } forking_info_t;
 
-char *module_name;
+char *MODULE_NAME;
+int *GROUPS_INFO;
+int *PROCESSES_PIDS;
+forking_info_t *FORKING_SCHEME;
 
-forking_info_t *get_fork_info(int process_number, forking_info_t *forking_scheme){
-    for (int i = 0; i < PARENTS_COUNT; i++){
-        if (forking_scheme[i].process_number == process_number){
+int RECEIVERS_IDS[PROCESSES_COUNT] = {-1, 2, -1, -1, -1, 6, -1, -1, 1};
+
+forking_info_t *get_fork_info(int process_number, forking_info_t *forking_scheme) {
+    for (int i = 0; i < PARENTS_COUNT; i++) {
+        if (forking_scheme[i].process_number == process_number) {
             return &(forking_scheme[i]);
         }
     }
     return NULL;
 }
 
-
-void create_forking_scheme(forking_info_t **forking_scheme){
-    *forking_scheme = malloc(sizeof(forking_info_t) * PARENTS_COUNT);
-    forking_info_t* result = *forking_scheme;
-
-    result[0].process_number = 0;
-    result[0].children_count = 1;
-    result[0].children = malloc(sizeof(int));
-    result[0].children[0] = 1;
-
-    result[1].process_number = 1;
-    result[1].children_count = 4;
-    result[1].children = malloc(sizeof(int) * 4);
-    result[1].children[0] = 2;
-    result[1].children[1] = 3;
-    result[1].children[2] = 4;
-    result[1].children[3] = 5;
-
-    result[2].process_number = 5;
-    result[2].children_count = 3;
-    result[2].children = malloc(sizeof(int) * 3);
-    result[2].children[0] = 6;
-    result[2].children[1] = 7;
-    result[2].children[2] = 8;
+int *create_groups_info(forking_info_t *forking_scheme, int *groups_info) {
+    for (int i = 0; i < PARENTS_COUNT; i++) {
+        groups_info[forking_scheme[i].process_number + 1] = forking_scheme[i].process_number + 1;
+    }
+    int parent = 0;
+    for (int i = 0; i < PROCESSES_COUNT; i++) {
+        if (groups_info[i]) {
+            parent = groups_info[i];
+        } else {
+            groups_info[i] = parent;
+        }
+    }
 }
 
-void start_process(forking_info_t* forking_scheme){
-    int *processes_pids;
-    if (!(processes_pids = mmap(NULL, PROCESSES_COUNT * sizeof(pid_t), PROT_READ | PROT_WRITE,
-                               MAP_SHARED | MAP_ANONYMOUS, -1, 0))) {
-        print_error(module_name, strerror(errno), "mmap");
+
+int get_process_number(const pid_t pid, const pid_t *processes_pids) {
+    for (int i = 0; i < PROCESSES_COUNT; i++) {
+        if (processes_pids[i] == pid) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+
+void create_forking_scheme(forking_info_t *forking_scheme) {
+
+    forking_scheme[0].process_number = 0;
+    forking_scheme[0].children_count = 1;
+    forking_scheme[0].children = malloc(sizeof(int));
+    forking_scheme[0].children[0] = 1;
+
+    forking_scheme[1].process_number = 1;
+    forking_scheme[1].children_count = 4;
+    forking_scheme[1].children = malloc(sizeof(int) * 4);
+    forking_scheme[1].children[0] = 2;
+    forking_scheme[1].children[1] = 3;
+    forking_scheme[1].children[2] = 4;
+    forking_scheme[1].children[3] = 5;
+
+    forking_scheme[2].process_number = 5;
+    forking_scheme[2].children_count = 3;
+    forking_scheme[2].children = malloc(sizeof(int) * 3);
+    forking_scheme[2].children[0] = 6;
+    forking_scheme[2].children[1] = 7;
+    forking_scheme[2].children[2] = 8;
+}
+
+void start_process() {
+    if (!(PROCESSES_PIDS = mmap(NULL, PROCESSES_COUNT * sizeof(pid_t), PROT_READ | PROT_WRITE,
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0))) {
+        print_error(MODULE_NAME, strerror(errno), "mmap");
         return;
     }
-    processes_pids[0] = getpid();
+    PROCESSES_PIDS[0] = getpid();
     int forked_process_number;
     int process_number = 0;
     int child_number = 0;
-
+    pid_t group_leader;
     forking_info_t *forking_info;
-    while ((forking_info = get_fork_info(process_number, forking_scheme)) && (child_number < forking_info->children_count)){
+    while ((forking_info = get_fork_info(process_number, FORKING_SCHEME)) &&
+           (child_number < forking_info->children_count)) {
         forked_process_number = forking_info->children[child_number];
         pid_t child = fork();
         switch (child) {
             case 0:
                 child_number = 0;
-                printf("forked %d, parent %d, pid %d, ppid %d\n", forked_process_number, process_number, getpid(), getppid());
-                processes_pids[forked_process_number] = getpid();
+
+                PROCESSES_PIDS[forked_process_number] = getpid();
+                printf("forked %d, parent %d, pid %d, ppid %d\n", forked_process_number, process_number,
+                       getpid(), getppid());
                 process_number = forked_process_number;
                 break;
             case -1:
-                print_error(module_name, strerror(errno), "fork");
-                return;
+                print_error(MODULE_NAME, strerror(errno), "fork");
+                exit(1);
             default:
+                while (!(group_leader = PROCESSES_PIDS[GROUPS_INFO[forked_process_number]]));
+                if (setpgid(child, group_leader) == -1) {
+                    print_error(MODULE_NAME, strerror(errno), "setpgid");
+                    exit(1);
+                };
                 child_number++;
         }
     }
-    while (wait(NULL) > 0);
-    if (process_number == 0){
-        for (int i = 0; i < PROCESSES_COUNT; i++){
-            printf("%d %d\n", i, processes_pids[i]);
-        }
-        if (munmap(processes_pids, sizeof(pid_t)*PROCESSES_COUNT) == -1){
-            print_error(module_name, strerror(errno), "munmap");
-        };
 
-    }
+    while (1);
+//    while (wait(NULL) > 0);
+//    if (process_number == 0) {
+//        if (munmap(processes_pids, sizeof(pid_t) * PROCESSES_COUNT) == -1) {
+//            print_error(MODULE_NAME, strerror(errno), "munmap");
+//        };
+//    };
 }
 
 
-int main(int argc, char* argv[]) {
-    forking_info_t *forking_scheme;
-    create_forking_scheme(&forking_scheme);
-    start_process(forking_scheme);
+int main(int argc, char *argv[]) {
+    FORKING_SCHEME = malloc(sizeof(forking_info_t) * PARENTS_COUNT);
+    create_forking_scheme(FORKING_SCHEME);
+    GROUPS_INFO = malloc(sizeof(int) * PROCESSES_COUNT);
+    create_groups_info(FORKING_SCHEME, GROUPS_INFO);
+    start_process();
     return 0;
 }
