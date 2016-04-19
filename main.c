@@ -12,9 +12,9 @@
 #include "config.h"
 
 char *MODULE_NAME;
-int *GROUPS_INFO;
 int *PROCESSES_PIDS;
 
+extern int GROUPS_INFO[PROCESSES_COUNT];
 extern int RECEIVERS_IDS[PROCESSES_COUNT];
 extern int SIGNALS_TO_SEND[PROCESSES_COUNT];
 forking_info_t *FORKING_SCHEME;
@@ -37,8 +37,8 @@ void signal_handler(int signum) {
     if (signum != SIGTERM) {
         print_info(PROCESS_NUMBER, 1, signum);
         int receiver_number = RECEIVERS_IDS[PROCESS_NUMBER];
+        sig_received++;
         if (PROCESS_NUMBER == 1) {
-            sig_received++;
             if (sig_received == 101) {
                 if (kill(-PROCESSES_PIDS[RECEIVERS_IDS[PROCESS_NUMBER]], SIGTERM) == -1) {
                     print_error(MODULE_NAME, strerror(errno), "kill");
@@ -50,12 +50,13 @@ void signal_handler(int signum) {
         }
         if (receiver_number != -1) {
             int signal_to_send = SIGNALS_TO_SEND[PROCESS_NUMBER];
+            usleep(100);
             if (kill(-PROCESSES_PIDS[GROUPS_INFO[RECEIVERS_IDS[PROCESS_NUMBER]]], signal_to_send) == -1) {
                 print_error(MODULE_NAME, strerror(errno), "kill");
                 exit(1);
             } else {
-                print_info(PROCESS_NUMBER, 0, SIGNALS_TO_SEND[PROCESS_NUMBER]);
-                (signal_to_send == SIGUSR1)?sig_usr1_sent++:sig_usr2_sent++;
+                print_info(PROCESS_NUMBER, 0, signal_to_send);
+                (signal_to_send == SIGUSR1) ? sig_usr1_sent++ : sig_usr2_sent++;
             };
         }
     } else {
@@ -71,26 +72,11 @@ void signal_handler(int signum) {
     }
 }
 
-void clear_forking_scheme(forking_info_t *forking_scheme){
-    for (int i = 0; i < PARENTS_COUNT; i++){
+void clear_forking_scheme(forking_info_t *forking_scheme) {
+    for (int i = 0; i < PARENTS_COUNT; i++) {
         free(forking_scheme[i].children);
     }
     free(forking_scheme);
-}
-
-
-void create_groups_info(forking_info_t *forking_scheme, int *groups_info) {
-    for (int i = 0; i < PARENTS_COUNT; i++) {
-        groups_info[forking_scheme[i].process_number + 1] = forking_scheme[i].process_number + 1;
-    }
-    int parent = 0;
-    for (int i = 0; i < PROCESSES_COUNT; i++) {
-        if (groups_info[i]) {
-            parent = groups_info[i];
-        } else {
-            groups_info[i] = parent;
-        }
-    }
 }
 
 char is_all_set(pid_t *process_pids) {
@@ -102,14 +88,7 @@ char is_all_set(pid_t *process_pids) {
     return 1;
 }
 
-
-
 void start_process() {
-    if (!(PROCESSES_PIDS = mmap(NULL, PROCESSES_COUNT * sizeof(pid_t), PROT_READ | PROT_WRITE,
-                                MAP_SHARED | MAP_ANONYMOUS, -1, 0))) {
-        print_error(MODULE_NAME, strerror(errno), "mmap");
-        return;
-    }
     PROCESSES_PIDS[0] = getpid();
     int forked_process_number;
     int child_number = 0;
@@ -156,18 +135,17 @@ void start_process() {
     PROCESSES_PIDS[PROCESS_NUMBER] = getpid();
     if (PROCESS_NUMBER == 1) {
         while (!is_all_set(PROCESSES_PIDS));
-        kill(-PROCESSES_PIDS[GROUPS_INFO[RECEIVERS_IDS[PROCESS_NUMBER]]], SIGNALS_TO_SEND[PROCESS_NUMBER]);
-        print_info(PROCESS_NUMBER, 0, SIGNALS_TO_SEND[PROCESS_NUMBER]);
+        int signal_to_send = SIGNALS_TO_SEND[PROCESS_NUMBER];
+        kill(-PROCESSES_PIDS[GROUPS_INFO[RECEIVERS_IDS[PROCESS_NUMBER]]], signal_to_send);
+        print_info(PROCESS_NUMBER, 0, signal_to_send);
     }
     if (PROCESS_NUMBER == 0) {
         wait(NULL);
-        if (munmap(PROCESSES_PIDS, sizeof(pid_t) * PROCESSES_COUNT) == -1) {
-            print_error(MODULE_NAME, strerror(errno), "munmap");
-        };
-        clear_forking_scheme(FORKING_SCHEME);
-        exit(0);
+        return;
     }
-    while (1);
+    while (1){
+        sleep(1);
+    };
 }
 
 
@@ -175,8 +153,17 @@ int main(int argc, char *argv[]) {
     MODULE_NAME = basename(argv[0]);
     FORKING_SCHEME = malloc(sizeof(forking_info_t) * PARENTS_COUNT);
     create_forking_scheme(FORKING_SCHEME);
-    GROUPS_INFO = malloc(sizeof(int) * PROCESSES_COUNT);
-    create_groups_info(FORKING_SCHEME, GROUPS_INFO);
+    if (!(PROCESSES_PIDS = mmap(NULL, PROCESSES_COUNT * sizeof(pid_t), PROT_READ | PROT_WRITE,
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0))) {
+        print_error(MODULE_NAME, strerror(errno), "mmap");
+        return 1;
+    }
+
     start_process();
+
+    if (munmap(PROCESSES_PIDS, sizeof(pid_t) * PROCESSES_COUNT) == -1) {
+        print_error(MODULE_NAME, strerror(errno), "munmap");
+    };
+    clear_forking_scheme(FORKING_SCHEME);
     return 0;
 }

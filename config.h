@@ -15,6 +15,7 @@ typedef struct {
 
 static int RECEIVERS_IDS[PROCESSES_COUNT] = {-1, 2, -1, -1, -1, 6, -1, -1, 1};
 static int SIGNALS_TO_SEND[PROCESSES_COUNT] = {-1, SIGUSR1, -1, -1, -1, SIGUSR1, -1, -1, SIGUSR1};
+static int GROUPS_INFO[PROCESSES_COUNT] = {0, 1, 2, 2, 2, 2, 6, 6, 6};
 
 void create_forking_scheme(forking_info_t *forking_scheme);
 
