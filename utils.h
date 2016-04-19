@@ -11,7 +11,8 @@
 #include <signal.h>
 
 void print_error(const char *module_name, const char *error_msg, const char *function_name);
-void print_info(int process_number, pid_t pid, pid_t ppid, char is_received, int signal_number);
+void print_info(int process_number, char is_received, int signal_number);
+void print_stat(int usr1_count, int usr2_count);
 long long current_time();
 
 #endif //LINUX_SIGNALS_UTILS_H
