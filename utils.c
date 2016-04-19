@@ -10,11 +10,19 @@ long long current_time() {
     return time.tv_sec * 1000 + time.tv_usec / 1000;
 }
 
-void print_info(int process_number, pid_t pid, pid_t ppid, char is_received, int signal_number) {
-    if (signal_number == SIGUSR1) {
-        printf("%d %d %d %s %s %lld", process_number, pid, ppid, is_received ? "получил" : "послал",
-               strsignal(signal_number), current_time());
+char *signal_name(int signum) {
+    switch (signum) {
+        case SIGUSR1:
+            return "SIGUSR1";
+        case SIGUSR2:
+            return "SIGUSR2";
+        default:
+            return "not found";
     }
 }
 
+void print_info(int process_number, pid_t pid, pid_t ppid, char is_received, int signal_number) {
+    printf("%d %d %d %s %s %lld\n", process_number, pid, ppid, is_received ? "получил" : "послал",
+           signal_name(signal_number), current_time());
+}
 
