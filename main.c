@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
+#include <libgen.h>
 
 #include "utils.h"
 #include "config.h"
@@ -171,6 +172,7 @@ void start_process() {
 
 
 int main(int argc, char *argv[]) {
+    MODULE_NAME = basename(argv[0]);
     FORKING_SCHEME = malloc(sizeof(forking_info_t) * PARENTS_COUNT);
     create_forking_scheme(FORKING_SCHEME);
     GROUPS_INFO = malloc(sizeof(int) * PROCESSES_COUNT);

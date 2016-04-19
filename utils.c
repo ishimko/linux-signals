@@ -2,7 +2,7 @@
 #include "utils.h"
 
 void print_error(const char *module_name, const char *error_msg, const char *function_name) {
-    fprintf(stderr, "%s: %s %s\n", module_name, error_msg, function_name ? function_name : "");
+    fprintf(stderr, "%s: %s: %s\n", module_name, function_name ? function_name : "", error_msg);
 }
 
 long long current_time() {
