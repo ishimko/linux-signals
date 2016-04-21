@@ -51,7 +51,7 @@ void signal_handler(int signum) {
         if (receiver_number != -1) {
             int signal_to_send = SIGNALS_TO_SEND[PROCESS_NUMBER];
             usleep(100);
-            if (kill(-PROCESSES_PIDS[GROUPS_INFO[RECEIVERS_IDS[PROCESS_NUMBER]]], signal_to_send) == -1) {
+            if (kill(-PROCESSES_PIDS[RECEIVERS_IDS[PROCESS_NUMBER]], signal_to_send) == -1) {
                 print_error(MODULE_NAME, strerror(errno), "kill");
                 exit(1);
             } else {
@@ -136,7 +136,7 @@ void start_process() {
     if (PROCESS_NUMBER == 1) {
         while (!is_all_set(PROCESSES_PIDS));
         int signal_to_send = SIGNALS_TO_SEND[PROCESS_NUMBER];
-        kill(-PROCESSES_PIDS[GROUPS_INFO[RECEIVERS_IDS[PROCESS_NUMBER]]], signal_to_send);
+        kill(-PROCESSES_PIDS[RECEIVERS_IDS[PROCESS_NUMBER]], signal_to_send);
         print_info(PROCESS_NUMBER, 0, signal_to_send);
     }
     if (PROCESS_NUMBER == 0) {
